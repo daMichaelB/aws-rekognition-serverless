@@ -1,0 +1,61 @@
+service: aws-rekognition-serverless
+
+provider:
+  name: aws
+  runtime: python3.7
+  environment:
+    DYNAMODB_TABLE: ${self:service}-${opt:stage, self:provider.stage}-table
+    QUEUE_NAME: ${self:service}-${opt:stage, self:provider.stage}-queue
+    INPUT_BUCKET: "Yourbucketname"
+  region: eu-central-1
+
+# you can add statements to the Lambda function"s IAM Role here
+  iamRoleStatements:
+    - Effect: "Allow"
+      Action:
+        - "s3:*"
+        - "Rekognition:*"
+        - "dynamodb:*"
+      Resource: "*"
+
+package:
+  exclude:
+     - venv/**
+     - node_modules/**
+
+functions:
+  aws-rekognition-lambda:
+    handler: handler.lambda_handler
+    events:
+      - sqs:
+          arn:
+            Fn::GetAtt:
+              - RekognitionInputQueue
+              - Arn
+
+resources:
+  Resources:
+    RekognitionInputQueue:
+      Type: "AWS::SQS::Queue"
+      Properties:
+        QueueName: ${self:provider.environment.QUEUE_NAME}
+
+    RekognitionResultsTable:
+      Type: "AWS::DynamoDB::Table"
+      DeletionPolicy: Retain
+      Properties:
+        AttributeDefinitions:
+          - AttributeName: img_url
+            AttributeType: S
+          - AttributeName: max_similarity
+            AttributeType: N
+        KeySchema:
+          - AttributeName: img_url
+            KeyType: HASH
+          - AttributeName: max_similarity
+            KeyType: RANGE
+        BillingMode: PAY_PER_REQUEST
+        TableName: ${self:provider.environment.DYNAMODB_TABLE}
+
+plugins:
+  - serverless-python-requirements
