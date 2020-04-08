@@ -7,26 +7,29 @@ class AwsManager(object):
 
     bucket = os.environ.get("INPUT_BUCKET")
 
+    def __init__(self):
+        self.rekognition_client = boto3.client("rekognition", region_name="us-east-1")
+        self.dynamo_client = boto3.resource("dynamodb")
+
     def compare_faces(self, img_url):
 
-        client = boto3.client("rekognition", region_name="us-east-1")
-
-        print(f"Sending to Rekognition {img_url}")
         max_similarity = 0
         try:
-            response = client.compare_faces(SimilarityThreshold=40,
-                                            SourceImage={
-                                                "S3Object": {
-                                                    "Bucket": self.bucket,
-                                                    "Name": img_url
-                                                }
-                                            },
-                                            TargetImage={
-                                                "S3Object": {
-                                                    "Bucket": self.bucket,
-                                                    "Name": "findthisguy2.jpg"
-                                                }
-                                            })
+            response = self.rekognition_client.compare_faces(
+                SimilarityThreshold=40,
+                SourceImage={
+                    "S3Object": {
+                        "Bucket": self.bucket,
+                        "Name": img_url
+                    }
+                },
+                TargetImage={
+                    "S3Object": {
+                        "Bucket": self.bucket,
+                        "Name": "findthisguy2.jpg"
+                    }
+                }
+            )
             for faceMatch in response["FaceMatches"]:
                 # position = faceMatch["Face"]["BoundingBox"]
                 confidence = str(faceMatch["Face"]["Confidence"])
@@ -41,18 +44,15 @@ class AwsManager(object):
 
         return max_similarity, response
 
-    @staticmethod
-    def to_dynamo(img_url, max_similarity, json_response):
-        dynamodb = boto3.resource("dynamodb")
-        table = dynamodb.Table(os.environ["DYNAMODB_TABLE"])
 
-        print(max_similarity)
+    def to_dynamo(self, img_url, max_similarity, json_response):
+        table = self.dynamo_client.Table(os.environ["DYNAMODB_TABLE"])
 
         item = {
             "img_url": str(img_url),
             "max_similarity": max_similarity,
             "response": json.dumps(json_response)
         }
-        # put items with batch-writer. this will handle unprocessed items (dynamodb was overloaded) and resend them
+
         with table.batch_writer() as batch:
             batch.put_item(Item=item)
