@@ -11,7 +11,7 @@ class AwsManager(object):
         self.rekognition_client = boto3.client("rekognition", region_name="us-east-1")
         self.dynamo_client = boto3.resource("dynamodb")
 
-    def compare_faces(self, img_url):
+    def compare_faces(self, source_img_url, target_img_url):
 
         max_similarity = 0
         try:
@@ -20,30 +20,28 @@ class AwsManager(object):
                 SourceImage={
                     "S3Object": {
                         "Bucket": self.bucket,
-                        "Name": img_url
+                        "Name": source_img_url
                     }
                 },
                 TargetImage={
                     "S3Object": {
                         "Bucket": self.bucket,
-                        "Name": "findthisguy2.jpg"
+                        "Name": target_img_url
                     }
                 }
             )
             for faceMatch in response["FaceMatches"]:
-                # position = faceMatch["Face"]["BoundingBox"]
                 confidence = str(faceMatch["Face"]["Confidence"])
                 similarity = float(faceMatch["Similarity"])
                 if similarity > max_similarity:
                     max_similarity = similarity
 
         except Exception as e:
-            print(f"Failed to use file: {img_url} - {str(e)}")
+            print(f"Failed to use file: {source_img_url} - {str(e)}")
             max_similarity = -1
             response = {}
 
         return max_similarity, response
-
 
     def to_dynamo(self, img_url, max_similarity, json_response):
         table = self.dynamo_client.Table(os.environ["DYNAMODB_TABLE"])

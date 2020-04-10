@@ -3,31 +3,17 @@ import os
 
 import boto3
 
-inline_counter = 0
-target_count = 0
-endings_counter = 0
-target_file = "targeted-refactored-images.txt"
+sqs = boto3.resource("sqs", region_name="eu-central-1")
+queue = sqs.get_queue_by_name(QueueName=os.environ.get("QUEUE_NAME"))
 
-file = open(target_file, "r")
+image_file_list = "demo/s3_image_list.txt"
+target_file = "target.jpg"
+with open(image_file_list, "r") as f:
+    for line in f:
+        source_file = line.strip()
+        print(f"Sending to Queue {source_file}")
+        try:
+            queue.send_message(MessageBody=(json.dumps({"img_url": source_file, "target_img_url": target_file})))
 
-for i in range(1, 1000):
-    sourceFile = file.readline().strip()
-    print(f"{i}: Sending to Queue {sourceFile}")
-    try:
-        sqs = boto3.client("sqs")
-
-        queue_name = os.environ.get("QUEUE_NAME")
-        #TODO: queue_url = get_queue_by_name(queue_name)
-        queue_url = "SOME-QUEUE-URL"
-
-        response = sqs.send_message(
-            QueueUrl=queue_url,
-            MessageBody=(
-                json.dumps({"img_url": sourceFile})
-            )
-        )
-
-        print(response["MessageId"])
-
-    except Exception as e:
-        print(f"Failed to use file: {sourceFile} {str(e)}")
+        except Exception as e:
+            print(f"Failed to use file: {source_file} {str(e)}")

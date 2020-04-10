@@ -1,27 +1,39 @@
 service: aws-rekognition-serverless
 
-provider:
-  name: aws
-  runtime: python3.7
-  environment:
-    DYNAMODB_TABLE: ${self:service}-${opt:stage, self:provider.stage}-table
-    QUEUE_NAME: ${self:service}-${opt:stage, self:provider.stage}-queue
-    INPUT_BUCKET: "Yourbucketname"
-  region: eu-central-1
-
-# you can add statements to the Lambda function"s IAM Role here
-  iamRoleStatements:
-    - Effect: "Allow"
-      Action:
-        - "s3:*"
-        - "Rekognition:*"
-        - "dynamodb:*"
-      Resource: "*"
-
+plugins:
+  - serverless-python-requirements
 package:
   exclude:
      - venv/**
      - node_modules/**
+     - .idea/**
+     - .serverless/**
+
+provider:
+  name: aws
+  runtime: python3.7
+  stage: ${opt:stage, 'dev'}
+  region: eu-central-1
+  versionFunctions: False
+
+  environment:
+    DYNAMODB_TABLE: ${self:service}-${opt:stage, self:provider.stage}-table
+    QUEUE_NAME: ${self:service}-${opt:stage, self:provider.stage}-queue
+    INPUT_BUCKET: ${env:INPUT_BUCKET}
+
+  iamRoleStatements:
+    - Effect: "Allow"
+      Action:
+        - "rekognition:*"
+      Resource: "*"
+    - Effect: "Allow"
+      Action:
+        - "s3:*"
+      Resource: "*"
+    - Effect: "Allow"
+      Action:
+        - "dynamodb:*"
+      Resource: "arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE}"
 
 functions:
   aws-rekognition-lambda:
@@ -56,6 +68,3 @@ resources:
             KeyType: RANGE
         BillingMode: PAY_PER_REQUEST
         TableName: ${self:provider.environment.DYNAMODB_TABLE}
-
-plugins:
-  - serverless-python-requirements
